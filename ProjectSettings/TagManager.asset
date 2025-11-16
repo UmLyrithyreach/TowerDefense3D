@@ -6,6 +6,7 @@ TagManager:
   tags:
   - CanPlace
   - CantPlace
+  - Projectile
   layers:
   - Default
   - TransparentFX
