@@ -15,16 +15,18 @@ public class Zombie : MonoBehaviour
     [Tooltip("Drag your 'splat' particle effect prefab here")]
     public GameObject hitEffectPrefab;
 
-    // --- Private Components ---
+    [Header("Wandering")]
+    [Tooltip("How far the zombie will look for a new random point.")]
+    public float wanderRadius = 15f;
+    [Tooltip("How long the zombie waits (at minimum) before finding a new point.")]
+    public float wanderTimer = 5f;
+
+    // --- Private Components & Timers ---
+    private float timer; // Timer to count up
     private Animator animator;
     private NavMeshAgent agent;
     private Rigidbody[] ragdollRigidbodies;
     private Collider mainCollider;
-
-    // --- Static Target ---
-    [Tooltip("A static target for ALL zombies to follow. Assign this in the Inspector.")]
-    public Transform goalTarget; // <-- Assign your "ZombieGoal" object to one zombie in the Inspector
-    private static Transform s_goalTarget; // All zombies will share this one target
 
     void Awake()
     {
@@ -32,16 +34,9 @@ public class Zombie : MonoBehaviour
         animator = GetComponent<Animator>();
         agent = GetComponent<NavMeshAgent>();
         mainCollider = GetComponent<Collider>();
-        
+
         // Find all rigidbodies that are part of the ragdoll
         ragdollRigidbodies = GetComponentsInChildren<Rigidbody>();
-
-        // --- Set the Static Goal ---
-        // This makes it so you only have to set the 'goalTarget' on one zombie prefab
-        if (goalTarget != null && s_goalTarget == null)
-        {
-            s_goalTarget = goalTarget;
-        }
     }
 
     void Start()
@@ -50,14 +45,62 @@ public class Zombie : MonoBehaviour
         // 1. Turn the ragdoll "OFF" so it can walk
         SetRagdollActive(false);
 
-        // 2. Tell the NavMeshAgent where to go
-        if (s_goalTarget != null)
+        // 2. Teleport to the nearest valid NavMesh point (THIS FIXES THE SPAWN ERROR)
+        // ---- THIS IS CORRECTION #1 ----
+        // The 'S{' from the previous code was a typo. It's now just '{'.
+        if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10.0f, NavMesh.AllAreas))
         {
-            agent.SetDestination(s_goalTarget.position);
+            agent.Warp(hit.position);
         }
-        
+        else
+        {
+            // If we can't find a spot, there's a bigger problem.
+            Debug.LogError("COULD NOT FIND NAVMESH FOR ZOMBIE!", this);
+            Destroy(gameObject); // Destroy this zombie, it can't move.
+            return;
+        }
+
         // 3. Tell the Animator to play the "Walk" animation
         animator.SetBool("isWalking", true);
+
+        // 4. Set the timer and find the first wander spot
+        timer = wanderTimer;
+        FindNewWanderPoint();
+    }
+
+    void Update()
+    {
+        // If the agent is not enabled, do nothing (e.g., it's dead)
+        if (!agent.enabled) return;
+
+        // --- Wander Logic ---
+        timer += Time.deltaTime;
+
+        // 1. If the timer runs out OR the zombie reached its destination...
+        if (timer >= wanderTimer || agent.remainingDistance <= agent.stoppingDistance)
+        {
+            // ...find a new place to walk.
+            FindNewWanderPoint();
+        }
+    }
+
+    /// <summary>
+    /// Finds a new random point on the NavMesh and tells the agent to go there.
+    /// </summary>
+    void FindNewWanderPoint()
+    {
+        Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
+        randomDirection += transform.position;
+
+        // Find the closest point on the NavMesh to our random spot
+        if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
+        {
+            // Set the agent's new destination
+            agent.SetDestination(hit.position);
+        }
+
+        // Reset the timer
+        timer = 0;
     }
 
     /// <summary>
@@ -83,8 +126,6 @@ public class Zombie : MonoBehaviour
     }
 
     // --- THIS IS THE HOMEWORK REQUIREMENT: OnCollisionEnter ---
-    // This function is called automatically by Unity's physics engine
-    // when another Rigidbody (the peashooter) hits this object's mainCollider.
     private void OnCollisionEnter(Collision collision)
     {
         // We only care if we are hit by a "Peashooter"
@@ -92,11 +133,12 @@ public class Zombie : MonoBehaviour
         {
             // 1. Get the exact point of the hit
             Vector3 hitPoint = collision.GetContact(0).point;
-            
+
             // 2. Spawn the "splat" particle effect
+            // ---- THIS IS CORRECTION #2 ----
+            // The 'prefab' variable didn't exist. We check for 'null' instead.
             if (hitEffectPrefab != null)
             {
-                // W4 CONCEPT: Particle System
                 Instantiate(hitEffectPrefab, hitPoint, Quaternion.identity);
             }
 
@@ -117,10 +159,9 @@ public class Zombie : MonoBehaviour
     void Die()
     {
         // --- THIS IS THE "WOW" MOMENT ---
-        // W4 CONCEPT: Joints (by activating the ragdoll)
-        SetRagdollActive(true); 
-        
+        SetRagdollActive(true);
+
         // This script is no longer needed, the physics engine takes over
-        this.enabled = false; 
+        this.enabled = false;
     }
 }
