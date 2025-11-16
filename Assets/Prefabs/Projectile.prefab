@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 5950499109232937930}
   - component: {fileID: 833962817988626062}
   m_Layer: 0
-  m_Name: Peashooter
+  m_Name: Projectile
   m_TagString: Projectile
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -129,7 +129,7 @@ public class Zombie : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         // We only care if we are hit by a "Peashooter"
-        if (collision.gameObject.CompareTag("Peashooter"))
+        if (collision.gameObject.CompareTag("Projectile"))
         {
             // 1. Get the exact point of the hit
             Vector3 hitPoint = collision.GetContact(0).point;
